@@ -1,0 +1,276 @@
+function ModifiedVisuomotorRotation
+% Adaptation to a gain change between the mapping of the cursor and the hand
+%
+% subjects must 1) before each trial click on the red target (starting point)
+%               2) they must aim at the blue target at a
+%               confortable speed and stop within the target
+%               3) they are not allowed to stop, change trajectory or
+%               correct their initial movement plan during their movement
+%               4) Once they start, they must only stop after
+%              reaching the target
+%               5) At the end of the movement, the target turns green
+Perms = importdata('Permutations.csv');
+RanOrder = importdata('RandomOrder.csv');
+filename=inputdlg('Subject name', 'name');
+filename = cell2mat(filename);
+subnum=inputdlg('Subject ID','ID');
+subnum = cell2mat(subnum);
+subnum = str2num(subnum);
+AssignGroup = RanOrder(subnum,:);
+Angles = Perms(AssignGroup,:);
+%% define figure
+figure('units','normalized','Position', [0,0,1,1],'MenuBar', 'None');
+axes('xlim',[-1.5 1.5],'ylim',[-1.5 1.5])
+axis square
+axis off
+hold on
+%% provide instructions
+h=msgbox({'Instructions for visuomotor rotation task';...
+    '1) before each trial click on the red target (starting point)';...
+    '2) you must aim at the blue target at a comfortable speed and stop at/within the target';...
+    '3) you are not allowed to stop inbetween, change trajectory or correct their initial movement plan during their movement';...
+    '4) Once you start, maintain a straight line and only stop after reaching the target';...
+    '5) At the end of the movement, the target turns green';...
+    '6) After few trials, an angle change will be introduced in the cursor movement. Make out the angle and move in a straight line';...
+    '7) Towards the end of the block, the angle change in the cursor movement will not be present'});
+p = get(h,'position');
+waitfor(h)
+%% define number of blocks and trials in each phase
+Nbase = 1;%baseline
+Nlearn = 1;%learning
+Nlearn1 = 1;
+Nlearn2 = 1;
+Nwash = 1;%washout
+Ntot = Nbase + Nlearn + Nwash + Nlearn1 + Nwash + Nlearn2 + Nwash;
+%% Connect to NetStation, start recording and synchronize
+%[status error] = NetStation('Connect','10.0.0.42');
+% NetStation('StartRecording');
+%NetStation('Synchronize');
+%NetStation('Event','STEX',GetSecs);
+%% Define target position
+TarAngle = zeros(Ntot,1);
+TarX = zeros(Ntot,1);
+TarY = zeros(Ntot,1);
+    for k=1:Ntot
+        xta = [-1 0 1];
+        yta = [-1 0 1];
+        zta = [-1 1];
+        posX = randi(length(xta));
+        Tarx = xta(posX);
+        if Tarx == 0;
+            posY = randi(length(zta));
+            Tary = zta(posY);
+        else
+            posY = randi(length(yta));
+            Tary = yta(posY);
+        end
+        TarA = atan(Tary/Tarx)*180/pi + 180*(Tarx<0);
+        TarAngle(k) = TarA;
+        TarX(k) = Tarx;
+        TarY(k) = Tary;
+    end
+ %% define perturbation angle (deg)
+Perturb = Angles(1,1);
+Perturb1 = Angles(1,2);
+Perturb2 = Angles(1,3);
+Err=zeros(Ntot,1);
+for k=1:Ntot
+    a=plot(0,0, '.r', 'MarkerSize',45);
+    FixOnset = GetSecs()
+    NetStation('Event','FIX',FixOnset,[.001],'TRIA',k);
+
+    if k<=Nbase,
+        BaseOnset = GetSecs()
+        NetStation('Event','BASE',BaseOnset,[.001],'ANGL',0,'TRIA',k);
+        [l,xs,ys]=RotCursor(0,TarX(k),TarY(k));
+        
+    elseif k>Nbase && k<=Nbase + Nlearn,
+        Blk1Onset = GetSecs()
+        NetStation('Event','BLK1',Blk1Onset,[.001],'ANGL',Perturb,'TRIA',k);
+        [l,xs,ys]=RotCursor(Perturb,TarX(k),TarY(k));
+        
+    elseif k>Nbase + Nlearn && k<=Nbase + Nlearn + Nwash,
+        Wsh1Onset = GetSecs()
+        NetStation('Event','WSH1',Wsh1Onset,[.001],'ANGL',0,'TRIA',k);
+        [l,xs,ys]=RotCursor(0,TarX(k),TarY(k));
+        
+    elseif k>Nbase + Nlearn + Nwash && k<=Nbase + Nlearn + Nwash + Nlearn1,
+            Blk2Onset = GetSecs()
+            NetStation('Event','BLK2',Blk2Onset,[.001],'ANGL',Perturb1,'TRIA',k);
+            [l,xs,ys]=RotCursor(Perturb1,TarX(k),TarY(k));
+            
+    elseif k>Nbase + Nlearn + Nwash + Nlearn1 && k<=Nbase + Nlearn + Nwash + Nlearn1 + Nwash,
+            Wsh2Onset = GetSecs()
+            NetStation('Event','WSH2',Wsh2Onset,[.001],'ANGL',0,'TRIA',k);
+            [l,xs,ys]=RotCursor(0,TarX(k),TarY(k));
+            
+    elseif k>Nbase + Nlearn + Nwash + Nlearn1 + Nwash && k<=Nbase + Nlearn + Nwash + Nlearn1 + Nwash + Nlearn2,
+            Blk3Onset = GetSecs()
+            NetStation('Event','BLK3',Blk3Onset,[.001],'ANGL',Perturb2,'TRIA',k);
+            [l,xs,ys]=RotCursor(Perturb2,TarX(k),TarY(k));
+            
+    elseif k>Nbase + Nlearn + Nwash + Nlearn1 + Nwash + Nlearn2 && k<=Nbase + Nlearn + Nwash + Nlearn1 + Nwash + Nlearn2 + Nwash,
+            Wsh3Onset = GetSecs()
+            NetStation('Event','WSH3',Wsh3Onset,[.001],'ANGL',0,'TRIA',k);
+            [l,xs,ys]=RotCursor(0,TarX(k),TarY(k));
+            
+    end
+    Dist = sqrt(xs.^2 + ys.^2);
+    I=find(Dist<0.5,1,'last');
+    CursorAngle = atan(ys(I)/xs(I))*180/pi + 180*(xs(I)<0);
+    Err(k) = TarAngle(k)-CursorAngle;
+    pause(0.5)
+    cla
+end
+NetStation('Event','ENEX',GetSecs);
+% NetStation('StopRecording');
+
+%correcting errors to a range of -180 to +180 degrees
+for e=1:numel(Err)
+    if Err(e)>180
+        Err(e)= -(360-Err(e));
+    end
+    if Err(e)<-180
+        Err(e)= Err(e)+360;
+    end
+end
+%clockwise errors = positive and anticlockwise error = negative
+close all
+Error=Err;
+MeErr = movmean(Error, [5 0]);
+Adap=zeros(Ntot,1);
+for k=1:Ntot
+    if k<=Nbase,
+        Adap(k) = 0;        
+    elseif k>Nbase && k<=Nbase + Nlearn,
+        Adap(k) = ((Perturb - abs(MeErr(k)))/Perturb)*100;       
+    elseif k>Nbase + Nlearn && k<=Nbase + Nlearn + Nwash,
+        Adap(k) = 0;
+    elseif k>Nbase + Nlearn + Nwash && k<=Nbase + Nlearn + Nwash + Nlearn1,
+        Adap(k) = ((Perturb1 - abs(MeErr(k)))/Perturb1)*100;    
+    elseif k>Nbase + Nlearn + Nwash + Nlearn1 && k<=Nbase + Nlearn + Nwash + Nlearn1 + Nwash,
+        Adap(k) = 0;
+    elseif k>Nbase + Nlearn + Nwash + Nlearn1 + Nwash && k<=Nbase + Nlearn + Nwash + Nlearn1 + Nwash + Nlearn2,
+        Adap(k) = ((Perturb2 - abs(MeErr(k)))/Perturb2)*100;   
+    elseif k>Nbase + Nlearn + Nwash + Nlearn1 + Nwash + Nlearn2 && k<=Nbase + Nlearn + Nwash + Nlearn1 + Nwash + Nlearn2 + Nwash,
+        Adap(k) = 0;            
+    end
+     Relativerror (k) = (Error(k)/Perturb)*100;
+end
+ErrorData = [Error, MeErr, Adap,Relativerror'];
+csvwrite(strcat(filename,'.csv'),ErrorData);
+figure
+plot(1:Ntot,Err,'-*r',1:Ntot,MeErr,'-*b',1:Ntot,Adap,'-*k')
+xlabel('trial number')
+ylabel('error at the end of movement (deg)')
+end
+
+function [lineobj,xs,ys] = RotCursor(RotValue,TarX,TarY)
+% This routine is a modified version of the FREEHANDDRAW routine, which is
+% availale on matlab central http://www.mathworks.com/matlabcentral/fileexchange/7347-freehanddraw
+%
+%
+% INPUT ARGUMENTS:  GainValue: default=1
+%                   TarX, TarY: x-y position of the target to reach (will be normalized to an amplitude of 1)
+%
+% OUTPUT ARGUMENTS: 1) Handle to line object
+%                  2) x-data of the movement
+%                  3) y-data of the movement
+% (Note that output args 2 and 3 can also be extracted from the first output
+% argument.)
+%
+
+%Get current figure and axis parameters
+NetStation('Synchronize');
+oldvals = get(gcf);
+oldhold = ishold(gca);
+
+hold on;
+
+set(gcf,'Pointer','circle','doublebuffer','on','UserData',RotValue); % 
+if nargin<2,
+    TarX=0;
+    TarY =1;
+else
+    TarX = TarX/norm([TarX, TarY]);
+    TarY = TarY/norm([TarX, TarY]);
+end
+b=plot(TarX,TarY, '.b', 'MarkerSize',69);
+TarOnset = GetSecs()
+NetStation('Event','TAR',TarOnset,[0.001]);
+%Get the initial point
+[xs,ys,zs] = ginputc(1,'Color', 'k','LineWidth', 0.3,'LineStyle', ':');
+MbnOnset = GetSecs()
+NetStation('Event','MBN',MbnOnset,[0.001]);
+%Create and store line object
+
+lineobj = line(xs,ys,'tag','tmpregsel');
+
+setappdata(gcf,'lineobj',lineobj);
+
+%Modify wbmf of current figure to update lineobject on mouse motion
+set(gcf,'windowbuttonmotionfcn',@wbmfcn_J);
+%Wait for right-click or double-click
+while ~strcmp(get(gcf,'SelectionType'),'alt') & ~strcmp(get(gcf,'SelectionType'),'open')
+	drawnow;
+end
+set(b,'color','g')
+TacOnset = GetSecs()
+NetStation('Event','TAC',TacOnset,[0.001]);
+MT = TacOnset - MbnOnset;
+RT = MbnOnset - TarOnset;
+RTfile = fopen('RTandMT.txt','a+');
+fprintf(RTfile,'%2.4f\t%2.4f\t%2.4f\t%2.4f\t%2.4f\n',TarOnset,...
+    MbnOnset, TacOnset, RT, MT);
+%Extract xyz data from line object for return in output variables
+%(Also retrievable from first output argument)
+if nargout > 1
+	xs = get(getappdata(gcf,'lineobj'),'xdata')';
+end
+if nargout > 2
+	ys = get(getappdata(gcf,'lineobj'),'ydata')';
+end
+
+%Clear temporary variables from base workspace
+evalin('caller','clear tmpx tmpy tmpz done gca lineobj');
+
+%Reset figure parameters
+set(gcf,'windowbuttonmotionfcn',oldvals.WindowButtonMotionFcn,...
+    'windowbuttondownfcn',oldvals.WindowButtonDownFcn);%,...
+%'Pointer',oldvals.Pointer,...
+% 	'doublebuffer',oldvals.DoubleBuffer);
+%Reset hold value of the axis
+if ~oldhold, hold off; end 
+end
+
+function wbmfcn_J(varargin)
+% this function displays the (modified) cursor trajectory
+%% make pointer invisible
+set(gcf, 'PointerShapeCData', ones(16, 16));
+set(gcf, 'Pointer', 'circle');
+%% get the amplitude of the perturbation
+RotParam=get(gcf,'UserData');
+lineobj = getappdata(gcf,'lineobj');
+if strcmp(get(gcf,'selectiontype'),'normal')
+    tmpx = get(lineobj,'xdata');
+    tmpy = get(lineobj,'ydata');
+    % get pointer position
+    a=get(gca,'currentpoint');
+    % rotate cursor motion
+    DATA = [a(1,1);a(1,2)]-[tmpx(1);tmpy(1)];
+    ROT = [cos(RotParam*pi/180) sin(RotParam*pi/180);-sin(RotParam*pi/180) cos(RotParam*pi/180)];
+    D = ROT*DATA;
+    a = [tmpx(1);tmpy(1)]+D;
+    % after movement end
+    if sqrt(sum(D.^2))>.95,
+         plot(a(1),a(2),'r*')
+         set(gcf,'selectiontype','open')
+    end
+    % add latest point
+    set(lineobj,'xdata',[tmpx,a(1)],'ydata',[tmpy,a(2)]);
+    % update figure
+    drawnow;
+else
+    setappdata(gcf,'lineobj',lineobj);
+end
+end
